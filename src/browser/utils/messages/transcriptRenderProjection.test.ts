@@ -170,7 +170,6 @@ describe("work bundle coalescing", () => {
       key: "work:think-1",
       position: "head",
       headIndex: 1,
-      finalIndex: 4,
       durationMs: 180_000,
       defaultExpanded: false,
       entries: [
@@ -182,6 +181,31 @@ describe("work bundle coalescing", () => {
     expect(infos[2]).toMatchObject({ key: "work:think-1", position: "member" });
     expect(infos[3]).toMatchObject({ key: "work:think-1", position: "member" });
     expect(infos[4]).toMatchObject({ key: "work:think-1", position: "final" });
+  });
+
+  test("keeps operational bundle metadata aligned inside work bundles", () => {
+    const historyId = "history-a1";
+    const messages = [
+      reasoning({ id: "think-1", historyId }),
+      assistant("draft-1", { historyId }),
+      tool({ id: "read-1", historyId, toolName: "file_read" }),
+      tool({ id: "skill-1", historyId, toolName: "agent_skill_read" }),
+      assistant("final-1", { historyId }),
+    ];
+
+    const workInfos = computeWorkBundleInfos(messages);
+    const operationalInfos = computeOperationalBundleInfos(messages, { isTurnActive: false });
+
+    expect(workInfos[0]?.entries.map((entry) => entry.originalIndex)).toEqual([0, 1, 2, 3]);
+    expect(operationalInfos[2]).toMatchObject({
+      position: "head",
+      headIndex: 2,
+      entries: [
+        { message: messages[0], originalIndex: 0 },
+        { message: messages[2], originalIndex: 2 },
+        { message: messages[3], originalIndex: 3 },
+      ],
+    });
   });
 
   test("leaves active work visible", () => {
@@ -375,7 +399,27 @@ describe("operational bundle summary", () => {
     ]);
 
     expect(summary.title).toBe("Ran 4 operations");
-    expect(summary.details).toBe("1 reasoning · 1 edit · 1 shell command · 1 question");
+    expect(summary.details).toBe("1 reasoning step · 1 edit · 1 shell command · 1 question");
+  });
+
+  test("pluralizes irregular detail labels", () => {
+    const summary = summarizeOperationalBundle([
+      tool({ id: "search-1", toolName: "web_search", result: [{ title: "one" }] }),
+      tool({ id: "search-2", toolName: "web_search", result: [{ title: "two" }] }),
+      tool({ id: "fetch-1", toolName: "web_fetch" }),
+      tool({ id: "fetch-2", toolName: "web_fetch" }),
+    ]);
+
+    expect(summary.details).toBe("2 searches · 2 fetches");
+  });
+
+  test("collapsed summaries include failed operation count", () => {
+    const summary = summarizeOperationalBundle([
+      tool({ id: "read-1", toolName: "file_read" }),
+      tool({ id: "bash-1", toolName: "bash", status: "failed" }),
+    ]);
+
+    expect(summary.title).toBe("Ran 2 operations · 1 failed");
   });
 
   test("all-miss completed search bundle gets neutral copy", () => {
@@ -400,6 +444,6 @@ describe("operational bundle summary", () => {
         result: { error: "provider unavailable" },
       }),
     ]);
-    expect(failedSearch.title).toBe("Searched 1 query");
+    expect(failedSearch.title).toBe("Searched 1 query · 1 failed");
   });
 });

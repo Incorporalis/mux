@@ -13,7 +13,6 @@ const item: WorkBundleInfo = {
   key: "work:one",
   position: "head",
   headIndex: 1,
-  finalIndex: 4,
   entries: [],
   durationMs: 180_000,
   defaultExpanded: false,

@@ -16,6 +16,7 @@ export function OperationalBundleMessage(props: OperationalBundleMessageProps): 
           props.item.entries.length === 1 ? "operation" : "operations"
         }`
       : props.item.summary.title;
+  const details = props.item.entries.length === 1 ? "" : props.item.summary.details;
 
   return (
     <ToolContainer data-testid="operational-bundle" expanded={false} className="bg-transparent">
@@ -33,9 +34,7 @@ export function OperationalBundleMessage(props: OperationalBundleMessageProps): 
         </ExpandIcon>
         <span className="text-secondary min-w-0 flex-1 truncate text-sm leading-5">
           <span>{title}</span>
-          {props.item.summary.details && (
-            <span className="text-muted"> · {props.item.summary.details}</span>
-          )}
+          {details && <span className="text-muted"> · {details}</span>}
         </span>
       </button>
     </ToolContainer>

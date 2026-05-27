@@ -33,7 +33,6 @@ export interface WorkBundleInfo {
   key: string;
   position: "head" | "member" | "final";
   headIndex: number;
-  finalIndex: number;
   entries: WorkBundleEntry[];
   durationMs?: number;
   defaultExpanded: boolean;
@@ -57,18 +56,46 @@ type OperationalBundleCategory =
 
 const OPERATIONAL_BUNDLE_CATEGORY_COPY: Record<
   OperationalBundleCategory,
-  { singletonTitle: string; detailLabel: string }
+  { singletonTitle: string; detailLabel: string; detailLabelPlural: string }
 > = {
-  reasoning: { singletonTitle: "Reasoned", detailLabel: "reasoning" },
-  read: { singletonTitle: "Read 1 file", detailLabel: "read" },
-  search: { singletonTitle: "Searched 1 query", detailLabel: "search" },
-  fetch: { singletonTitle: "Fetched 1 page", detailLabel: "fetch" },
-  skill: { singletonTitle: "Read 1 skill", detailLabel: "skill read" },
-  edit: { singletonTitle: "Edited 1 file", detailLabel: "edit" },
-  shell: { singletonTitle: "Ran 1 shell command", detailLabel: "shell command" },
-  question: { singletonTitle: "Asked 1 question", detailLabel: "question" },
-  task: { singletonTitle: "Ran 1 agent task", detailLabel: "agent task" },
-  tool: { singletonTitle: "Ran 1 operation", detailLabel: "operation" },
+  reasoning: {
+    singletonTitle: "Reasoned",
+    detailLabel: "reasoning step",
+    detailLabelPlural: "reasoning steps",
+  },
+  read: { singletonTitle: "Read 1 file", detailLabel: "read", detailLabelPlural: "reads" },
+  search: {
+    singletonTitle: "Searched 1 query",
+    detailLabel: "search",
+    detailLabelPlural: "searches",
+  },
+  fetch: { singletonTitle: "Fetched 1 page", detailLabel: "fetch", detailLabelPlural: "fetches" },
+  skill: {
+    singletonTitle: "Read 1 skill",
+    detailLabel: "skill read",
+    detailLabelPlural: "skill reads",
+  },
+  edit: { singletonTitle: "Edited 1 file", detailLabel: "edit", detailLabelPlural: "edits" },
+  shell: {
+    singletonTitle: "Ran 1 shell command",
+    detailLabel: "shell command",
+    detailLabelPlural: "shell commands",
+  },
+  question: {
+    singletonTitle: "Asked 1 question",
+    detailLabel: "question",
+    detailLabelPlural: "questions",
+  },
+  task: {
+    singletonTitle: "Ran 1 agent task",
+    detailLabel: "agent task",
+    detailLabelPlural: "agent tasks",
+  },
+  tool: {
+    singletonTitle: "Ran 1 operation",
+    detailLabel: "operation",
+    detailLabelPlural: "operations",
+  },
 };
 
 export function computeWorkBundleInfos(
@@ -115,7 +142,6 @@ export function computeWorkBundleInfos(
       key: `work:${first.id}`,
       position: "head",
       headIndex: startIndex,
-      finalIndex,
       entries,
       durationMs: computeWorkBundleDurationMs(entries, messages[finalIndex]),
       defaultExpanded: false,
@@ -265,17 +291,33 @@ export function summarizeOperationalBundle(
 
   const allSearchMisses = messages.every(isEmptyCompletedWebSearch);
   if (allSearchMisses) {
-    return { title: "No results", details: formatDetails(messages) };
+    return {
+      title: withFailureIndicator("No results", messages),
+      details: formatDetails(messages),
+    };
   }
 
   if (messages.length === 1) {
-    return { title: singletonTitle(messages[0]), details: formatDetails(messages) };
+    return {
+      title: withFailureIndicator(singletonTitle(messages[0]), messages),
+      details: formatDetails(messages),
+    };
   }
 
   return {
-    title: `Ran ${messages.length.toLocaleString()} operations`,
+    title: withFailureIndicator(`Ran ${messages.length.toLocaleString()} operations`, messages),
     details: formatDetails(messages),
   };
+}
+
+function withFailureIndicator(title: string, messages: OperationalBundleMemberMessage[]): string {
+  const failedCount = messages.filter(
+    (message) => message.type === "tool" && message.status === "failed"
+  ).length;
+  if (failedCount === 0) {
+    return title;
+  }
+  return `${title} · ${failedCount.toLocaleString()} failed`;
 }
 
 function isFailedWebSearch(message: DisplayedMessage | undefined): boolean {
@@ -335,15 +377,18 @@ function singletonTitle(message: OperationalBundleMemberMessage): string {
 }
 
 function formatDetails(messages: OperationalBundleMemberMessage[]): string {
-  const counts = new Map<string, number>();
+  const counts = new Map<OperationalBundleCategory, number>();
   for (const message of messages) {
-    const label =
-      OPERATIONAL_BUNDLE_CATEGORY_COPY[getOperationalBundleCategory(message)].detailLabel;
-    counts.set(label, (counts.get(label) ?? 0) + 1);
+    const category = getOperationalBundleCategory(message);
+    counts.set(category, (counts.get(category) ?? 0) + 1);
   }
 
   return Array.from(counts.entries())
-    .map(([label, count]) => `${count.toLocaleString()} ${label}${count === 1 ? "" : "s"}`)
+    .map(([category, count]) => {
+      const copy = OPERATIONAL_BUNDLE_CATEGORY_COPY[category];
+      const label = count === 1 ? copy.detailLabel : copy.detailLabelPlural;
+      return `${count.toLocaleString()} ${label}`;
+    })
     .join(" · ");
 }
 

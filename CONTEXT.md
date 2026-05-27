@@ -52,6 +52,10 @@ _Avoid_: compaction, context compaction
 The most aggressive **Transcript Density**, focused on surfacing important conversation progress while reducing low-signal transcript detail.
 _Avoid_: hyper compact mode, compaction mode
 
+**Work Bundle**:
+A presentation grouping for completed assistant-turn activity before the final visible response.
+_Avoid_: compaction, transcript summary
+
 **Operational Bundle**:
 A presentation grouping of adjacent low-signal operational transcript details.
 _Avoid_: timeline rail, global operation summary

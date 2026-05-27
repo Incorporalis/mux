@@ -24,6 +24,8 @@ function tool(id: string): DisplayedMessage & { type: "tool" } {
   };
 }
 
+const noop = () => undefined;
+
 describe("OperationalBundleMessage", () => {
   beforeEach(() => {
     globalThis.window = new GlobalWindow() as unknown as Window & typeof globalThis;
@@ -56,5 +58,23 @@ describe("OperationalBundleMessage", () => {
     view.rerender(<OperationalBundleMessage item={item} expanded={expanded} onToggle={onToggle} />);
 
     expect(view.getByRole("button", { expanded: true })).toBeDefined();
+  });
+
+  test("renders active bundle state", () => {
+    const item = computeOperationalBundleInfos([{ ...tool("read-1"), status: "executing" }], {
+      isTurnActive: true,
+    })[0]!;
+
+    const view = render(<OperationalBundleMessage item={item} expanded onToggle={noop} />);
+
+    expect(view.getByText("Running 1 operation")).toBeDefined();
+  });
+
+  test("suppresses redundant singleton details", () => {
+    const item = computeOperationalBundleInfos([tool("read-1")], { isTurnActive: false })[0]!;
+
+    const view = render(<OperationalBundleMessage item={item} expanded={false} onToggle={noop} />);
+
+    expect(view.getByRole("button").textContent).toBe("▶Read 1 file");
   });
 });

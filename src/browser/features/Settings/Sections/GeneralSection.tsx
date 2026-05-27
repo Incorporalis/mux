@@ -589,7 +589,8 @@ export function GeneralSection() {
             <div className="flex-1">
               <div className="text-foreground text-sm">Transcript density</div>
               <div className="text-muted text-xs">
-                Choose how much operational detail the transcript shows.
+                Control how much detail the transcript shows. Hyper collapses completed work into
+                expandable summaries.
               </div>
             </div>
             <Select
