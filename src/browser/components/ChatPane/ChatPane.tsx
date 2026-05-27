@@ -1263,6 +1263,8 @@ const ChatPaneContent: React.FC<ChatPaneContentProps> = (props) => {
                           ? taskReportLinking
                           : undefined;
 
+                      // Coalesced file-tool summaries still replace only the head row when collapsed.
+                      // Work/operational bundle gates decide whether that normal row slot is visible first.
                       const renderCoalesceSummary =
                         renderMessageAfterOperationalBundle &&
                         toolCoalesceGroup?.position === "head" &&

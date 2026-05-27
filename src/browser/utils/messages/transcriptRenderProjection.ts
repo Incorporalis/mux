@@ -1,7 +1,7 @@
 import { getToolCoalesceKind } from "./toolCoalescing";
 import type { DisplayedMessage } from "@/common/types/message";
 
-export type OperationalBundleMessage = DisplayedMessage & { type: "reasoning" | "tool" };
+export type OperationalBundleMemberMessage = DisplayedMessage & { type: "reasoning" | "tool" };
 
 export interface OperationalBundleSummary {
   title: string;
@@ -9,7 +9,7 @@ export interface OperationalBundleSummary {
 }
 
 export interface OperationalBundleEntry {
-  message: OperationalBundleMessage;
+  message: OperationalBundleMemberMessage;
   originalIndex: number;
 }
 
@@ -38,7 +38,7 @@ export interface WorkBundleInfo {
   defaultExpanded: boolean;
 }
 
-interface ComputeOperationalBundleInfosOptions {
+interface ComputeBundleInfosOptions {
   isTurnActive: boolean;
 }
 
@@ -72,7 +72,7 @@ const OPERATIONAL_BUNDLE_CATEGORY_COPY: Record<
 
 export function computeWorkBundleInfos(
   messages: DisplayedMessage[],
-  options: ComputeOperationalBundleInfosOptions
+  options: ComputeBundleInfosOptions
 ): Array<WorkBundleInfo | undefined> {
   const infos = new Array<WorkBundleInfo | undefined>(messages.length);
   let index = 0;
@@ -131,7 +131,7 @@ export function computeWorkBundleInfos(
 
 export function computeOperationalBundleInfos(
   messages: DisplayedMessage[],
-  options: ComputeOperationalBundleInfosOptions
+  options: ComputeBundleInfosOptions
 ): Array<OperationalBundleInfo | undefined> {
   const infos = new Array<OperationalBundleInfo | undefined>(messages.length);
   let index = 0;
@@ -151,10 +151,11 @@ export function computeOperationalBundleInfos(
     if (leadingReasoningEntries.length > 0 && messages[index]?.type === "assistant") {
       index += 1;
     } else if (leadingReasoningEntries.length > 0) {
+      leadingReasoningEntries.length = 0;
       index = leadingReasoningStart;
     }
 
-    if (!isOperationalBundleMessage(messages[index])) {
+    if (!isOperationalBundleMemberMessage(messages[index])) {
       index += 1;
       continue;
     }
@@ -163,7 +164,7 @@ export function computeOperationalBundleInfos(
     const entries: OperationalBundleEntry[] = [...leadingReasoningEntries];
     while (index < messages.length) {
       const candidate = messages[index];
-      if (!isOperationalBundleMessage(candidate)) {
+      if (!isOperationalBundleMemberMessage(candidate)) {
         break;
       }
       entries.push({ message: candidate, originalIndex: index });
@@ -246,7 +247,7 @@ function computeWorkBundleDurationMs(
 
 function hasVisibleEventAfter(messages: DisplayedMessage[], startIndex: number): boolean {
   for (let index = startIndex; index < messages.length; index++) {
-    if (!isOperationalBundleMessage(messages[index])) {
+    if (!isOperationalBundleMemberMessage(messages[index])) {
       return true;
     }
   }
@@ -255,7 +256,7 @@ function hasVisibleEventAfter(messages: DisplayedMessage[], startIndex: number):
 }
 
 export function summarizeOperationalBundle(
-  messages: OperationalBundleMessage[]
+  messages: OperationalBundleMemberMessage[]
 ): OperationalBundleSummary {
   if (messages.length === 0) {
     throw new Error("Cannot summarize an empty operational bundle");
@@ -279,24 +280,24 @@ export function summarizeOperationalBundle(
   };
 }
 
-function isOperationalBundleMessage(
+function isOperationalBundleMemberMessage(
   message: DisplayedMessage | undefined
-): message is OperationalBundleMessage {
+): message is OperationalBundleMemberMessage {
   return message?.type === "tool" || message?.type === "reasoning";
 }
 
-function isActiveOperationalMessage(message: OperationalBundleMessage): boolean {
+function isActiveOperationalMessage(message: OperationalBundleMemberMessage): boolean {
   if (message.type === "reasoning") {
     return message.isStreaming;
   }
   return message.status === "pending" || message.status === "executing";
 }
 
-function singletonTitle(message: OperationalBundleMessage): string {
+function singletonTitle(message: OperationalBundleMemberMessage): string {
   return OPERATIONAL_BUNDLE_CATEGORY_COPY[getOperationalBundleCategory(message)].singletonTitle;
 }
 
-function formatDetails(messages: OperationalBundleMessage[]): string {
+function formatDetails(messages: OperationalBundleMemberMessage[]): string {
   const counts = new Map<string, number>();
   for (const message of messages) {
     const label =
@@ -310,7 +311,7 @@ function formatDetails(messages: OperationalBundleMessage[]): string {
 }
 
 function getOperationalBundleCategory(
-  message: OperationalBundleMessage
+  message: OperationalBundleMemberMessage
 ): OperationalBundleCategory {
   if (message.type === "reasoning") {
     return "reasoning";

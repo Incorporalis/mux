@@ -178,6 +178,24 @@ describe("operational bundle coalescing", () => {
     expect(infos[4]).toMatchObject({ position: "head" });
   });
 
+  test("does not duplicate leading reasoning when it is the bundle head", () => {
+    const first = reasoning({ id: "think-1" });
+    const second = tool({ id: "read-1", toolName: "file_read" });
+
+    const reasoningOnly = computeOperationalBundleInfos([first], { isTurnActive: false });
+    expect(reasoningOnly[0]?.entries).toEqual([{ message: first, originalIndex: 0 }]);
+    expect(reasoningOnly[0]?.summary.title).toBe("Reasoned");
+
+    const reasoningThenTool = computeOperationalBundleInfos([first, second], {
+      isTurnActive: false,
+    });
+    expect(reasoningThenTool[0]?.entries).toEqual([
+      { message: first, originalIndex: 0 },
+      { message: second, originalIndex: 1 },
+    ]);
+    expect(reasoningThenTool[0]?.summary.title).toBe("Ran 2 operations");
+  });
+
   test("active and just-settled tail bundles stay expanded until a visible event or turn end", () => {
     const active = computeOperationalBundleInfos(
       [reasoning({ id: "think-1", isStreaming: true })],

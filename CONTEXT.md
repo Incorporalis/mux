@@ -87,52 +87,36 @@ _Avoid_: generic shell command, operational noise
 - **Transcript Density** changes the presentation of **Transcript History**, not what is preserved.
 - **Transcript Density** does not change **Active Conversation Context**.
 
-- **Hyper Transcript Density** can present low-signal transcript detail as **Operational Bundles**.
+- **Hyper Transcript Density** can present completed assistant work as **Work Bundles** and adjacent operational transcript detail as **Operational Bundles**.
+- A **Work Bundle** summarizes the assistant activity before the final visible response and shows elapsed work duration.
 - An **Operational Bundle** preserves local transcript order instead of summarizing unrelated operations across a whole turn.
-- Conversation rows bound **Operational Bundles**; they should not swallow the pacing between user prompts and assistant decisions.
-
-- Successful material changes remain first-class transcript events under **Hyper Transcript Density**.
-- **Operational Bundles** are for low-signal operational details, not for hiding material changes.
-
-- **Validation Events** remain visible under **Hyper Transcript Density**.
-- A successful **Validation Event** may be visually compact, but it is not hidden inside an **Operational Bundle**.
-
-- **Mutation Events** remain visible under **Hyper Transcript Density**.
-- A **Mutation Event** may be visually compact, but it is not hidden inside an **Operational Bundle**.
-
-- A single low-signal operation can still be represented as an **Operational Bundle** so **Hyper Transcript Density** reduces detail without making agent work invisible.
-
-- **Operational Bundles** default collapsed under **Hyper Transcript Density**.
-- Active low-signal work can remain compact unless it becomes long-running or attention-worthy.
-
-- An expanded **Operational Bundle** reveals the transcript details it grouped.
-
-- An **Operational Bundle** can remain expanded while it contains active low-signal work, then collapse after that work settles and the transcript moves on.
-
-- Low-impact operational misses can remain inside **Operational Bundles**; attention-worthy failures remain first-class transcript events.
+- Conversation rows can remain visible inside an expanded **Work Bundle** so the transcript still shows assistant pacing.
+- Tool calls, reasoning, edits, validation, mutation, questions, and task activity can be represented as compact **Operational Bundles** under **Hyper Transcript Density**.
+- Expanded bundles reveal the transcript details they grouped, so compact presentation does not lose inspectability.
+- Active work remains visible until the turn settles; completed work can collapse after the final response appears.
 
 ## Example dialogue
 
 > **Dev:** "After a **Context Reset**, can the agent answer from messages above the **Context Reset Boundary**, or see a hidden note that the reset happened?"
-> **Domain expert:** "No — those messages remain in **Transcript History**, and the boundary is visible transcript structure, but neither is part of the agent's **Active Conversation Context**."
+> **Domain expert:** "No - those messages remain in **Transcript History**, and the boundary is visible transcript structure, but neither is part of the agent's **Active Conversation Context**."
 
 > **Dev:** "Are **Compaction Boundaries** and **Context Reset Boundaries** separate mechanisms?"
-> **Domain expert:** "No — both are **Context Boundaries**. A **Compaction Boundary** summarizes earlier history for the agent; a **Context Reset Boundary** does not."
+> **Domain expert:** "No - both are **Context Boundaries**. A **Compaction Boundary** summarizes earlier history for the agent; a **Context Reset Boundary** does not."
 
 > **Dev:** "Should `/clear` preserve **Transcript History** now that **Context Reset** exists?"
-> **Domain expert:** "No — `/clear` remains a **Hard Clear**. `/clear --soft` performs a **Context Reset**."
+> **Domain expert:** "No - `/clear` remains a **Hard Clear**. `/clear --soft` performs a **Context Reset**."
 
 > **Dev:** "If there is no **Transcript History**, should a **Context Reset** create a boundary anyway?"
-> **Domain expert:** "No — without earlier history, there is nothing for a **Context Reset Boundary** to separate."
+> **Domain expert:** "No - without earlier history, there is nothing for a **Context Reset Boundary** to separate."
 
 > **Dev:** "If the user repeats `/clear --soft` before sending another message, should we append another **Context Reset Boundary**?"
-> **Domain expert:** "No — repeated resets with no active-context messages are no-op successes."
+> **Domain expert:** "No - repeated resets with no active-context messages are no-op successes."
 
 > **Dev:** "Should the `/clear --soft` command itself appear as a user message?"
-> **Domain expert:** "No — a **Context Reset** is represented by a **Context Reset Boundary**, not by a user prompt."
+> **Domain expert:** "No - a **Context Reset** is represented by a **Context Reset Boundary**, not by a user prompt."
 
 > **Dev:** "Can a **Context Reset** happen while the agent is still responding?"
-> **Domain expert:** "No — context can only be reset once the active turn has stopped and transcript ordering is stable."
+> **Domain expert:** "No - context can only be reset once the active turn has stopped and transcript ordering is stable."
 
 > **Dev:** "How should users find **Context Reset** outside slash commands?"
 > **Domain expert:** "Expose it as a separate command from **Hard Clear**, named around resetting context while preserving history."
@@ -144,43 +128,34 @@ _Avoid_: generic shell command, operational noise
 > **Domain expert:** "Persist the timestamp for ordering and audit, but keep the visible separator label simple."
 
 > **Dev:** "Can a **Context Reset** happen while user input is queued?"
-> **Domain expert:** "No — queued input belongs to the old context and must be sent or cleared before resetting."
+> **Domain expert:** "No - queued input belongs to the old context and must be sent or cleared before resetting."
 
 > **Dev:** "What happens to pending composer content when a user performs a **Context Reset**?"
 > **Domain expert:** "Resetting context starts fresh, so pending composer state should not carry over."
 
 > **Dev:** "Should partial or aborted messages before a **Context Reset Boundary** be cleaned up?"
-> **Domain expert:** "No — they remain **Transcript History** above the boundary, but are outside the new **Active Conversation Context**."
+> **Domain expert:** "No - they remain **Transcript History** above the boundary, but are outside the new **Active Conversation Context**."
 
 > **Dev:** "Does **Hyper Transcript Density** compact the context or alter what the agent will see next?"
-> **Domain expert:** "No — it only changes how **Transcript History** is presented to the user. It never changes **Active Conversation Context**."
+> **Domain expert:** "No - it only changes how **Transcript History** is presented to the user. It never changes **Active Conversation Context**."
 
 > **Dev:** "Should **Hyper Transcript Density** merge every successful tool in a turn into one summary?"
-> **Domain expert:** "No — group adjacent low-signal details into **Operational Bundles** so the transcript still shows the pacing between inspection, decisions, fixes, failures, and validation."
+> **Domain expert:** "No - group adjacent details into **Operational Bundles** and group completed pre-final assistant work into a **Work Bundle** so the final response stays visible."
 
-> **Dev:** "Should a successful file edit be hidden inside an **Operational Bundle** if it happened between reads and shell commands?"
-> **Domain expert:** "No — material changes remain visible as first-class transcript events. Bundle the surrounding low-signal operations instead."
+> **Dev:** "Can file edits, validation commands, task calls, and user questions appear inside an **Operational Bundle**?"
+> **Domain expert:** "Yes - **Hyper Transcript Density** prioritizes skim density. Expansion must reveal the original transcript rows so important details remain inspectable."
 
-> **Dev:** "If `make static-check` passes, can **Hyper Transcript Density** hide it inside an **Operational Bundle**?"
-> **Domain expert:** "No — correctness checks are **Validation Events**. They can be compact, but they remain visible."
+> **Dev:** "If there is only one operation between conversation rows, should **Hyper Transcript Density** hide it entirely?"
+> **Domain expert:** "No - show a compact **Operational Bundle** so the transcript still reveals that work happened."
 
-> **Dev:** "Can a successful command that committed, pushed, installed, generated, or reformatted state be hidden inside an **Operational Bundle**?"
-> **Domain expert:** "No — state-changing work is a **Mutation Event**. It can be compact, but it remains visible."
-
-> **Dev:** "If there is only one low-signal operation between conversation rows, should **Hyper Transcript Density** hide it entirely?"
-> **Domain expert:** "No — show a compact **Operational Bundle** so the transcript still reveals that work happened."
-
-> **Dev:** "Should **Operational Bundles** auto-expand while the agent streams so users can watch every detail?"
-> **Domain expert:** "No — **Hyper Transcript Density** defaults bundles collapsed. Only long-running or attention-worthy active work should break that compact presentation."
+> **Dev:** "Should **Work Bundles** appear while the agent is still responding?"
+> **Domain expert:** "No - a **Work Bundle** is shown after the turn settles, immediately before the final visible assistant response."
 
 > **Dev:** "When an **Operational Bundle** expands, should it show a separate simplified summary instead of the grouped transcript details?"
-> **Domain expert:** "No — expansion should reveal the transcript details that were grouped, so compact presentation does not lose inspectability."
+> **Domain expert:** "No - expansion should reveal the transcript details that were grouped, so compact presentation does not lose inspectability."
 
 > **Dev:** "Must active low-signal work stay outside an **Operational Bundle** until it completes?"
-> **Domain expert:** "No — it can be grouped while active, as long as the bundle remains expanded until the work settles and the transcript moves on."
-
-> **Dev:** "Should every failed command escape an **Operational Bundle**?"
-> **Domain expert:** "No — low-impact operational misses can stay bundled. Attention-worthy failures, such as correctness or state-changing failures, remain first-class transcript events."
+> **Domain expert:** "No - it can be grouped while active, as long as the bundle remains expanded until the work settles and the transcript moves on."
 
 ## Flagged ambiguities
 
