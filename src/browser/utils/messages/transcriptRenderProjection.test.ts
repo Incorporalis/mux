@@ -196,6 +196,22 @@ describe("work bundle coalescing", () => {
     expect(infos.every((info) => info === undefined)).toBe(true);
   });
 
+  test("keeps failed searches visible before a final assistant row", () => {
+    const historyId = "history-a1";
+    const failedSearch = tool({
+      id: "search-1",
+      historyId,
+      toolName: "web_search",
+      status: "failed",
+      result: { error: "provider unavailable" },
+    });
+    const messages = [failedSearch, assistant("final-1", { historyId })];
+
+    const infos = computeWorkBundleInfos(messages);
+
+    expect(infos.every((info) => info === undefined)).toBe(true);
+  });
+
   test("keeps visible artifacts and stream errors out of work bundles", () => {
     const historyId = "history-a1";
     const messages = [

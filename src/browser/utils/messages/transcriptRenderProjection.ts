@@ -205,9 +205,10 @@ export function computeOperationalBundleInfos(
 function getWorkBundleHistoryId(message: DisplayedMessage | undefined): string | undefined {
   switch (message?.type) {
     case "assistant":
-    case "tool":
     case "reasoning":
       return message.historyId;
+    case "tool":
+      return isFailedWebSearch(message) ? undefined : message.historyId;
     default:
       return undefined;
   }
@@ -277,6 +278,12 @@ export function summarizeOperationalBundle(
   };
 }
 
+function isFailedWebSearch(message: DisplayedMessage | undefined): boolean {
+  return (
+    message?.type === "tool" && message.toolName === "web_search" && message.status === "failed"
+  );
+}
+
 function isEmptyCompletedWebSearch(message: OperationalBundleMemberMessage): boolean {
   return (
     message.type === "tool" &&
@@ -311,7 +318,7 @@ function isOperationalBundleMemberMessage(
     return message.isOnlyMessageContent !== true;
   }
   if (message?.type === "tool") {
-    return !(message.toolName === "web_search" && message.status === "failed");
+    return !isFailedWebSearch(message);
   }
   return false;
 }
