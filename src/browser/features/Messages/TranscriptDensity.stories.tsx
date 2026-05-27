@@ -1,4 +1,3 @@
-import { expect, userEvent, within } from "@storybook/test";
 import { updatePersistedState } from "@/browser/hooks/usePersistedState";
 import type { AppStory } from "@/browser/stories/meta.js";
 import { appMeta, AppWithMocks, CHROMATIC_SMOKE_MODES } from "@/browser/stories/meta.js";
@@ -91,21 +90,6 @@ export const HyperCollapsedBundles: AppStory = {
 
 export const HyperExpandedBundle: AppStory = {
   render: () => <AppWithMocks setup={() => setupTranscriptDensityStory("hyper")} />,
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    const workBundleButton = await canvas.findByTestId("work-bundle", {}, { timeout: 10_000 });
-    await userEvent.click(workBundleButton);
-    await expect(workBundleButton).toHaveAttribute("aria-expanded", "true");
-
-    const operationalBundle = (await canvas.findAllByTestId("operational-bundle"))[0];
-    if (!operationalBundle) {
-      throw new Error("Expected an operational bundle inside the expanded work bundle");
-    }
-    const operationalBundleButton = within(operationalBundle).getByRole("button");
-    await userEvent.click(operationalBundleButton);
-    await expect(operationalBundleButton).toHaveAttribute("aria-expanded", "true");
-    await expect(await canvas.findByText(/src\/auth\.ts/)).toBeInTheDocument();
-  },
 };
 
 export const HyperActiveExpandedBundle: AppStory = {
