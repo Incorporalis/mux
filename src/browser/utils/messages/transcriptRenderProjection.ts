@@ -23,6 +23,21 @@ export interface OperationalBundleInfo {
   defaultExpanded: boolean;
 }
 
+export interface WorkBundleEntry {
+  message: DisplayedMessage;
+  originalIndex: number;
+}
+
+export interface WorkBundleInfo {
+  key: string;
+  position: "head" | "member" | "final";
+  headIndex: number;
+  finalIndex: number;
+  entries: WorkBundleEntry[];
+  durationMs?: number;
+  defaultExpanded: boolean;
+}
+
 interface ComputeOperationalBundleInfosOptions {
   isTurnActive: boolean;
 }
@@ -54,6 +69,65 @@ const OPERATIONAL_BUNDLE_CATEGORY_COPY: Record<
   task: { singletonTitle: "Ran 1 agent task", detailLabel: "agent task" },
   tool: { singletonTitle: "Ran 1 operation", detailLabel: "operation" },
 };
+
+export function computeWorkBundleInfos(
+  messages: DisplayedMessage[],
+  options: ComputeOperationalBundleInfosOptions
+): Array<WorkBundleInfo | undefined> {
+  const infos = new Array<WorkBundleInfo | undefined>(messages.length);
+  let index = 0;
+
+  while (index < messages.length) {
+    const historyId = getWorkBundleHistoryId(messages[index]);
+    if (historyId === undefined) {
+      index += 1;
+      continue;
+    }
+
+    const startIndex = index;
+    while (getWorkBundleHistoryId(messages[index + 1]) === historyId) {
+      index += 1;
+    }
+
+    const finalIndex = index;
+    index += 1;
+
+    if (finalIndex <= startIndex) {
+      continue;
+    }
+
+    const entries: WorkBundleEntry[] = [];
+    for (let entryIndex = startIndex; entryIndex < finalIndex; entryIndex++) {
+      entries.push({ message: messages[entryIndex], originalIndex: entryIndex });
+    }
+
+    const groupMessages = [...entries.map((entry) => entry.message), messages[finalIndex]];
+    if (groupMessages.some(isActiveWorkBundleMessage) || options.isTurnActive) {
+      continue;
+    }
+
+    const first = entries[0].message;
+    const info: WorkBundleInfo = {
+      key: `work:${first.id}`,
+      position: "head",
+      headIndex: startIndex,
+      finalIndex,
+      entries,
+      durationMs: computeWorkBundleDurationMs(entries, messages[finalIndex]),
+      defaultExpanded: false,
+    };
+
+    for (const entry of entries) {
+      infos[entry.originalIndex] = {
+        ...info,
+        position: entry.originalIndex === startIndex ? "head" : "member",
+      };
+    }
+    infos[finalIndex] = { ...info, position: "final" };
+  }
+
+  return infos;
+}
 
 export function computeOperationalBundleInfos(
   messages: DisplayedMessage[],
@@ -121,6 +195,53 @@ export function computeOperationalBundleInfos(
   }
 
   return infos;
+}
+
+function getWorkBundleHistoryId(message: DisplayedMessage | undefined): string | undefined {
+  switch (message?.type) {
+    case "assistant":
+    case "tool":
+    case "reasoning":
+    case "stream-error":
+    case "generated-image":
+    case "edited-image":
+    case "plan-display":
+      return message.historyId;
+    default:
+      return undefined;
+  }
+}
+
+function isActiveWorkBundleMessage(message: DisplayedMessage): boolean {
+  if (message.type === "assistant" || message.type === "reasoning") {
+    return message.isStreaming;
+  }
+  return (
+    message.type === "tool" && (message.status === "pending" || message.status === "executing")
+  );
+}
+
+function getMessageTimestamp(message: DisplayedMessage): number | undefined {
+  return "timestamp" in message && typeof message.timestamp === "number"
+    ? message.timestamp
+    : undefined;
+}
+
+function computeWorkBundleDurationMs(
+  entries: WorkBundleEntry[],
+  finalMessage: DisplayedMessage
+): number | undefined {
+  const startTimestamp = getMessageTimestamp(entries[0].message);
+  const endTimestamp =
+    getMessageTimestamp(finalMessage) ?? getMessageTimestamp(entries.at(-1)!.message);
+  if (
+    startTimestamp === undefined ||
+    endTimestamp === undefined ||
+    endTimestamp <= startTimestamp
+  ) {
+    return undefined;
+  }
+  return endTimestamp - startTimestamp;
 }
 
 function hasVisibleEventAfter(messages: DisplayedMessage[], startIndex: number): boolean {

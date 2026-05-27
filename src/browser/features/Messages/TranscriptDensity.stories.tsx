@@ -18,7 +18,7 @@ import { STABLE_TIMESTAMP } from "@/browser/stories/mocks/workspaces";
 import { TRANSCRIPT_DENSITY_KEY, type TranscriptDensity } from "@/common/constants/storage";
 
 const meta = { ...appMeta, title: "App/Chat/Transcript Density" };
-const MAIN_BUNDLE_LABEL = /Ran 5 operations/i;
+const MAIN_WORK_BUNDLE_LABEL = /Worked for/i;
 export default meta;
 
 function setDensity(density: TranscriptDensity): void {
@@ -44,38 +44,38 @@ function setupTranscriptDensityStory(density: TranscriptDensity) {
           createWebSearchTool("density-search-1", "JWT validation best practices", 3),
           createAgentSkillReadTool("density-skill-1", "react-effects", { scope: "global" }),
           createBashTool("density-rg-1", 'rg "verify" src', "src/auth.ts:1:verify"),
+          {
+            type: "text",
+            text: "I found the relevant code and will patch it.",
+            timestamp: STABLE_TIMESTAMP - 35_000,
+          },
+          createFileEditTool(
+            "density-edit-1",
+            "src/auth.ts",
+            [
+              "--- src/auth.ts",
+              "+++ src/auth.ts",
+              "@@ -1,3 +1,4 @@",
+              "+import { timingSafeEqual } from 'crypto';",
+              " export function verify() {}",
+            ].join("\n")
+          ),
+          createBashTool(
+            "density-test-1",
+            "make test",
+            "42 tests passed",
+            0,
+            30,
+            500,
+            "Running tests"
+          ),
+          {
+            type: "text",
+            text: "Implemented the auth audit fix and validated it.",
+            timestamp: STABLE_TIMESTAMP - 15_000,
+          },
         ],
       }),
-      createAssistantMessage(
-        "density-assistant-2",
-        "I found the relevant code and will patch it.",
-        {
-          historySequence: 3,
-          timestamp: STABLE_TIMESTAMP - 45_000,
-          toolCalls: [
-            createFileEditTool(
-              "density-edit-1",
-              "src/auth.ts",
-              [
-                "--- src/auth.ts",
-                "+++ src/auth.ts",
-                "@@ -1,3 +1,4 @@",
-                "+import { timingSafeEqual } from 'crypto';",
-                " export function verify() {}",
-              ].join("\n")
-            ),
-            createBashTool(
-              "density-test-1",
-              "make test",
-              "42 tests passed",
-              0,
-              30,
-              500,
-              "Running tests"
-            ),
-          ],
-        }
-      ),
     ],
   });
 }
@@ -94,7 +94,7 @@ export const HyperExpandedBundle: AppStory = {
   render: () => <AppWithMocks setup={() => setupTranscriptDensityStory("hyper")} />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const bundleButton = await canvas.findByRole("button", { name: MAIN_BUNDLE_LABEL });
+    const bundleButton = await canvas.findByRole("button", { name: MAIN_WORK_BUNDLE_LABEL });
     await userEvent.click(bundleButton);
     await expect(bundleButton).toHaveAttribute("aria-expanded", "true");
   },

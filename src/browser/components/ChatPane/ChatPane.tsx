@@ -12,6 +12,7 @@ import { MessageListProvider } from "@/browser/features/Messages/MessageListCont
 import { cn } from "@/common/lib/utils";
 import { ChatInstructionsChatDecoration } from "@/browser/components/InstructionsTab/AdditionalSystemContextScratchpad";
 import { MessageRenderer } from "@/browser/features/Messages/MessageRenderer";
+import { WorkBundleMessage } from "@/browser/features/Messages/WorkBundleMessage";
 import { OperationalBundleMessage } from "@/browser/features/Messages/OperationalBundleMessage";
 import { MarkdownRenderer } from "@/browser/features/Messages/MarkdownRenderer";
 import { useTranscriptContextMenu } from "@/browser/features/Messages/useTranscriptContextMenu";
@@ -104,7 +105,10 @@ import {
   isSideQuestionScrollHoldBottomClamped,
   type SideQuestionScrollHoldState,
 } from "./sideQuestionScrollHold";
-import { computeOperationalBundleInfos } from "@/browser/utils/messages/transcriptRenderProjection";
+import {
+  computeOperationalBundleInfos,
+  computeWorkBundleInfos,
+} from "@/browser/utils/messages/transcriptRenderProjection";
 import { recordSyntheticReactRenderSample } from "@/browser/utils/perf/reactProfileCollector";
 
 // Perf e2e runs load the production bundle where React's onRender profiler callbacks may not
@@ -356,6 +360,10 @@ const ChatPaneContent: React.FC<ChatPaneContentProps> = (props) => {
     new Set()
   );
 
+  const [workBundleExpansionOverrides, setWorkBundleExpansionOverrides] = useState<
+    Map<string, boolean>
+  >(new Map());
+
   const [operationalBundleExpansionOverrides, setOperationalBundleExpansionOverrides] = useState<
     Map<string, boolean>
   >(new Map());
@@ -455,6 +463,16 @@ const ChatPaneContent: React.FC<ChatPaneContentProps> = (props) => {
   const toolCoalesceInfos = useMemo(
     () => computeToolCoalesceInfos(deferredMessages),
     [deferredMessages]
+  );
+
+  const workBundleInfos = useMemo(
+    () =>
+      transcriptDensity === "hyper"
+        ? computeWorkBundleInfos(deferredMessages, {
+            isTurnActive: isStreamStarting || canInterrupt,
+          })
+        : undefined,
+    [canInterrupt, deferredMessages, isStreamStarting, transcriptDensity]
   );
 
   const operationalBundleInfos = useMemo(
@@ -720,6 +738,7 @@ const ChatPaneContent: React.FC<ChatPaneContentProps> = (props) => {
     setEditingState({ workspaceId, message: undefined });
     setExpandedBashGroups(new Set());
     setExpandedToolCoalesceGroups(new Set());
+    setWorkBundleExpansionOverrides(new Map());
     setOperationalBundleExpansionOverrides(new Map());
   }, [workspaceId]);
 
@@ -1162,7 +1181,23 @@ const ChatPaneContent: React.FC<ChatPaneContentProps> = (props) => {
                       </div>
                     )}
                     {deferredMessages.map((msg, index) => {
-                      const operationalBundle = operationalBundleInfos?.[index];
+                      const workBundle = workBundleInfos?.[index];
+                      const workBundleOverride = workBundle
+                        ? workBundleExpansionOverrides.get(workBundle.key)
+                        : undefined;
+                      const isWorkBundleExpanded = workBundle
+                        ? (workBundleOverride ?? workBundle.defaultExpanded)
+                        : false;
+
+                      if (workBundle?.position === "member") {
+                        return null;
+                      }
+
+                      const renderWorkBundle = workBundle?.position === "head";
+                      const renderMessageAfterWorkBundle = !renderWorkBundle;
+                      const operationalBundle = workBundle
+                        ? undefined
+                        : operationalBundleInfos?.[index];
                       const operationalBundleOverride = operationalBundle
                         ? operationalBundleExpansionOverrides.get(operationalBundle.key)
                         : undefined;
@@ -1179,7 +1214,8 @@ const ChatPaneContent: React.FC<ChatPaneContentProps> = (props) => {
 
                       const renderOperationalBundle = operationalBundle?.position === "head";
                       const renderMessageAfterOperationalBundle =
-                        !renderOperationalBundle || isOperationalBundleExpanded;
+                        renderMessageAfterWorkBundle &&
+                        (!renderOperationalBundle || isOperationalBundleExpanded);
 
                       const bashOutputGroup = bashOutputGroupInfos[index];
 
@@ -1198,9 +1234,11 @@ const ChatPaneContent: React.FC<ChatPaneContentProps> = (props) => {
                         return null;
                       }
 
-                      const toolCoalesceGroup = operationalBundle
+                      const toolCoalesceGroup = workBundle
                         ? undefined
-                        : toolCoalesceInfos[index];
+                        : operationalBundle
+                          ? undefined
+                          : toolCoalesceInfos[index];
                       const coalesceHeadId = toolCoalesceGroup
                         ? deferredMessages[toolCoalesceGroup.headIndex]?.id
                         : undefined;
@@ -1248,6 +1286,124 @@ const ChatPaneContent: React.FC<ChatPaneContentProps> = (props) => {
 
                       return (
                         <React.Fragment key={`${workspaceId}:${msg.id}`}>
+                          {renderWorkBundle && workBundle && (
+                            <WorkBundleMessage
+                              item={workBundle}
+                              expanded={isWorkBundleExpanded}
+                              onToggle={() => {
+                                setWorkBundleExpansionOverrides((prev) => {
+                                  const next = new Map(prev);
+                                  const nextExpanded = !isWorkBundleExpanded;
+                                  if (nextExpanded === workBundle.defaultExpanded) {
+                                    next.delete(workBundle.key);
+                                  } else {
+                                    next.set(workBundle.key, nextExpanded);
+                                  }
+                                  return next;
+                                });
+                              }}
+                            />
+                          )}
+                          {renderWorkBundle &&
+                            workBundle &&
+                            isWorkBundleExpanded &&
+                            workBundle.entries.map((entry) => {
+                              const nestedOperationalBundle =
+                                operationalBundleInfos?.[entry.originalIndex];
+                              const nestedOverride = nestedOperationalBundle
+                                ? operationalBundleExpansionOverrides.get(
+                                    nestedOperationalBundle.key
+                                  )
+                                : undefined;
+                              const isNestedExpanded = nestedOperationalBundle
+                                ? (nestedOverride ?? nestedOperationalBundle.defaultExpanded)
+                                : false;
+
+                              if (
+                                nestedOperationalBundle?.position === "member" &&
+                                (entry.originalIndex < nestedOperationalBundle.headIndex ||
+                                  !isNestedExpanded)
+                              ) {
+                                return null;
+                              }
+
+                              const renderNestedBundle =
+                                nestedOperationalBundle?.position === "head";
+                              const renderNestedMessage = !renderNestedBundle || isNestedExpanded;
+
+                              return (
+                                <React.Fragment
+                                  key={`${workspaceId}:${workBundle.key}:${entry.message.id}`}
+                                >
+                                  {renderNestedBundle && nestedOperationalBundle && (
+                                    <div className="ml-4">
+                                      <OperationalBundleMessage
+                                        item={nestedOperationalBundle}
+                                        expanded={isNestedExpanded}
+                                        onToggle={() => {
+                                          setOperationalBundleExpansionOverrides((prev) => {
+                                            const next = new Map(prev);
+                                            const nextExpanded = !isNestedExpanded;
+                                            if (
+                                              nextExpanded ===
+                                              nestedOperationalBundle.defaultExpanded
+                                            ) {
+                                              next.delete(nestedOperationalBundle.key);
+                                            } else {
+                                              next.set(nestedOperationalBundle.key, nextExpanded);
+                                            }
+                                            return next;
+                                          });
+                                        }}
+                                      />
+                                    </div>
+                                  )}
+                                  {isNestedExpanded &&
+                                    nestedOperationalBundle?.position === "head" &&
+                                    nestedOperationalBundle.entries
+                                      .filter(
+                                        (nestedEntry) =>
+                                          nestedEntry.originalIndex <
+                                          nestedOperationalBundle.headIndex
+                                      )
+                                      .map((nestedEntry) => (
+                                        <div
+                                          key={`${workspaceId}:${nestedOperationalBundle.key}:${nestedEntry.message.id}`}
+                                          className="ml-8"
+                                        >
+                                          <MessageRenderer
+                                            message={nestedEntry.message}
+                                            workspaceId={workspaceId}
+                                            isCompacting={isCompacting}
+                                            onReviewNote={handleReviewNote}
+                                          />
+                                        </div>
+                                      ))}
+                                  {renderNestedMessage && (
+                                    <div className={nestedOperationalBundle ? "ml-8" : "ml-4"}>
+                                      <MessageRenderer
+                                        message={entry.message}
+                                        workspaceId={workspaceId}
+                                        isCompacting={isCompacting}
+                                        onReviewNote={handleReviewNote}
+                                        isLatestProposePlan={
+                                          entry.message.type === "tool" &&
+                                          entry.message.toolName === "propose_plan" &&
+                                          entry.message.id === latestProposePlanId
+                                        }
+                                        taskReportLinking={
+                                          entry.message.type === "tool" &&
+                                          (entry.message.toolName === "task" ||
+                                            entry.message.toolName === "task_await")
+                                            ? taskReportLinking
+                                            : undefined
+                                        }
+                                      />
+                                    </div>
+                                  )}
+                                </React.Fragment>
+                              );
+                            })}
                           {renderOperationalBundle && operationalBundle && (
                             <OperationalBundleMessage
                               item={operationalBundle}

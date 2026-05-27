@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import type { DisplayedMessage } from "@/common/types/message";
 import {
   computeOperationalBundleInfos,
+  computeWorkBundleInfos,
   summarizeOperationalBundle,
 } from "./transcriptRenderProjection";
 
@@ -57,19 +58,77 @@ function user(id: string): DisplayedMessage {
   };
 }
 
-function assistant(id: string): DisplayedMessage {
+function assistant(
+  id: string,
+  overrides: Partial<DisplayedMessage & { type: "assistant" }> = {}
+): DisplayedMessage & { type: "assistant" } {
   return {
     type: "assistant",
     id,
-    historyId: `history-${id}`,
-    content: "done",
-    historySequence: 1,
-    isStreaming: false,
-    isPartial: false,
-    isCompacted: false,
-    isIdleCompacted: false,
+    historyId: overrides.historyId ?? `history-${id}`,
+    content: overrides.content ?? "done",
+    historySequence: overrides.historySequence ?? 1,
+    streamSequence: overrides.streamSequence,
+    isStreaming: overrides.isStreaming ?? false,
+    isPartial: overrides.isPartial ?? false,
+    isLastPartOfMessage: overrides.isLastPartOfMessage,
+    isCompacted: overrides.isCompacted ?? false,
+    isIdleCompacted: overrides.isIdleCompacted ?? false,
+    timestamp: overrides.timestamp,
   };
 }
+
+describe("work bundle coalescing", () => {
+  test("collapses completed assistant work before the final row", () => {
+    const messages = [
+      user("u1"),
+      reasoning({ id: "think-1", historyId: "history-a1", timestamp: 1_000 }),
+      assistant("draft-1", {
+        historyId: "history-a1",
+        content: "I'll inspect first.",
+        timestamp: 61_000,
+      }),
+      tool({ id: "read-1", historyId: "history-a1", timestamp: 121_000 }),
+      assistant("final-1", {
+        historyId: "history-a1",
+        content: "Implemented the fix.",
+        timestamp: 181_000,
+      }),
+    ];
+
+    const infos = computeWorkBundleInfos(messages, { isTurnActive: false });
+
+    expect(infos[0]).toBeUndefined();
+    expect(infos[1]).toMatchObject({
+      key: "work:think-1",
+      position: "head",
+      headIndex: 1,
+      finalIndex: 4,
+      durationMs: 180_000,
+      defaultExpanded: false,
+      entries: [
+        { message: messages[1], originalIndex: 1 },
+        { message: messages[2], originalIndex: 2 },
+        { message: messages[3], originalIndex: 3 },
+      ],
+    });
+    expect(infos[2]).toMatchObject({ key: "work:think-1", position: "member" });
+    expect(infos[3]).toMatchObject({ key: "work:think-1", position: "member" });
+    expect(infos[4]).toMatchObject({ key: "work:think-1", position: "final" });
+  });
+
+  test("leaves active work visible", () => {
+    const messages = [
+      reasoning({ id: "think-1", historyId: "history-a1" }),
+      tool({ id: "read-1", historyId: "history-a1", status: "executing" }),
+      assistant("final-1", { historyId: "history-a1" }),
+    ];
+
+    const infos = computeWorkBundleInfos(messages, { isTurnActive: true });
+
+    expect(infos.every((info) => info === undefined)).toBe(true);
+  });
+});
 
 describe("operational bundle coalescing", () => {
   test("groups consecutive reasoning and tool calls without mutating messages", () => {
