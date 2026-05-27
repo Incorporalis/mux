@@ -466,13 +466,8 @@ const ChatPaneContent: React.FC<ChatPaneContentProps> = (props) => {
   );
 
   const workBundleInfos = useMemo(
-    () =>
-      transcriptDensity === "hyper"
-        ? computeWorkBundleInfos(deferredMessages, {
-            isTurnActive: isStreamStarting || canInterrupt,
-          })
-        : undefined,
-    [canInterrupt, deferredMessages, isStreamStarting, transcriptDensity]
+    () => (transcriptDensity === "hyper" ? computeWorkBundleInfos(deferredMessages) : undefined),
+    [deferredMessages, transcriptDensity]
   );
 
   const operationalBundleInfos = useMemo(

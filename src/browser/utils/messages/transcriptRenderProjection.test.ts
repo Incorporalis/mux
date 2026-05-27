@@ -96,7 +96,7 @@ describe("work bundle coalescing", () => {
       }),
     ];
 
-    const infos = computeWorkBundleInfos(messages, { isTurnActive: false });
+    const infos = computeWorkBundleInfos(messages);
 
     expect(infos[0]).toBeUndefined();
     expect(infos[1]).toMatchObject({
@@ -124,7 +124,7 @@ describe("work bundle coalescing", () => {
       assistant("final-1", { historyId: "history-a1" }),
     ];
 
-    const infos = computeWorkBundleInfos(messages, { isTurnActive: true });
+    const infos = computeWorkBundleInfos(messages);
 
     expect(infos.every((info) => info === undefined)).toBe(true);
   });

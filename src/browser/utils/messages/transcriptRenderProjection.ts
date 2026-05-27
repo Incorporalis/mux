@@ -71,8 +71,7 @@ const OPERATIONAL_BUNDLE_CATEGORY_COPY: Record<
 };
 
 export function computeWorkBundleInfos(
-  messages: DisplayedMessage[],
-  options: ComputeBundleInfosOptions
+  messages: DisplayedMessage[]
 ): Array<WorkBundleInfo | undefined> {
   const infos = new Array<WorkBundleInfo | undefined>(messages.length);
   let index = 0;
@@ -102,7 +101,7 @@ export function computeWorkBundleInfos(
     }
 
     const groupMessages = [...entries.map((entry) => entry.message), messages[finalIndex]];
-    if (groupMessages.some(isActiveWorkBundleMessage) || options.isTurnActive) {
+    if (groupMessages.some(isActiveWorkBundleMessage)) {
       continue;
     }
 
