@@ -44,6 +44,7 @@ function reasoning(
     isPartial: overrides.isPartial ?? false,
     streamSequence: overrides.streamSequence,
     isLastPartOfMessage: overrides.isLastPartOfMessage,
+    isOnlyMessageContent: overrides.isOnlyMessageContent,
     timestamp: overrides.timestamp,
   };
 }
@@ -176,6 +177,14 @@ describe("operational bundle coalescing", () => {
     expect(infos[2]).toMatchObject({ position: "head" });
     expect(infos[3]).toBeUndefined();
     expect(infos[4]).toMatchObject({ position: "head" });
+  });
+
+  test("leaves reasoning-only turns visible", () => {
+    const message = reasoning({ id: "think-only", isOnlyMessageContent: true });
+
+    const infos = computeOperationalBundleInfos([message], { isTurnActive: false });
+
+    expect(infos[0]).toBeUndefined();
   });
 
   test("does not duplicate leading reasoning when it is the bundle head", () => {

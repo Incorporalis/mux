@@ -282,7 +282,10 @@ export function summarizeOperationalBundle(
 function isOperationalBundleMemberMessage(
   message: DisplayedMessage | undefined
 ): message is OperationalBundleMemberMessage {
-  return message?.type === "tool" || message?.type === "reasoning";
+  if (message?.type === "reasoning") {
+    return message.isOnlyMessageContent !== true;
+  }
+  return message?.type === "tool";
 }
 
 function isActiveOperationalMessage(message: OperationalBundleMemberMessage): boolean {
