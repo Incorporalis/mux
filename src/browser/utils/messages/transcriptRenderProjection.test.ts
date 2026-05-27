@@ -79,6 +79,72 @@ function assistant(
   };
 }
 
+function streamError(id: string, historyId: string): DisplayedMessage & { type: "stream-error" } {
+  return {
+    type: "stream-error",
+    id,
+    historyId,
+    error: "Provider error",
+    errorType: "api",
+    historySequence: 1,
+  };
+}
+
+function generatedImage(
+  id: string,
+  historyId: string
+): DisplayedMessage & { type: "generated-image" } {
+  return {
+    type: "generated-image",
+    id,
+    historyId,
+    toolCallId: `call-${id}`,
+    prompt: "Draw a chart",
+    model: "image-model",
+    images: [{ path: "/tmp/chart.png", filename: "chart.png", mediaType: "image/png" }],
+    historySequence: 1,
+    isPartial: false,
+  };
+}
+
+function editedImage(id: string, historyId: string): DisplayedMessage & { type: "edited-image" } {
+  return {
+    type: "edited-image",
+    id,
+    historyId,
+    toolCallId: `call-${id}`,
+    prompt: "Adjust the chart",
+    model: "image-model",
+    source: {
+      path: "/tmp/chart.png",
+      resolvedPath: "/tmp/chart.png",
+      sizeBytes: 100,
+      dimensions: { width: 10, height: 10 },
+    },
+    images: [
+      {
+        path: "/tmp/chart-edited.png",
+        filename: "chart-edited.png",
+        mediaType: "image/png",
+        outputDimensions: { width: 10, height: 10 },
+      },
+    ],
+    historySequence: 1,
+    isPartial: false,
+  };
+}
+
+function planDisplay(id: string, historyId: string): DisplayedMessage & { type: "plan-display" } {
+  return {
+    type: "plan-display",
+    id,
+    historyId,
+    content: "# Plan",
+    path: ".mux/plan.md",
+    historySequence: 1,
+  };
+}
+
 describe("work bundle coalescing", () => {
   test("collapses completed assistant work before the final row", () => {
     const messages = [
@@ -123,6 +189,22 @@ describe("work bundle coalescing", () => {
       reasoning({ id: "think-1", historyId: "history-a1" }),
       tool({ id: "read-1", historyId: "history-a1", status: "executing" }),
       assistant("final-1", { historyId: "history-a1" }),
+    ];
+
+    const infos = computeWorkBundleInfos(messages);
+
+    expect(infos.every((info) => info === undefined)).toBe(true);
+  });
+
+  test("keeps visible artifacts and stream errors out of work bundles", () => {
+    const historyId = "history-a1";
+    const messages = [
+      reasoning({ id: "think-1", historyId }),
+      tool({ id: "read-1", historyId }),
+      streamError("error-1", historyId),
+      generatedImage("generated-1", historyId),
+      editedImage("edited-1", historyId),
+      planDisplay("plan-1", historyId),
     ];
 
     const infos = computeWorkBundleInfos(messages);
@@ -205,6 +287,19 @@ describe("operational bundle coalescing", () => {
     expect(reasoningThenTool[0]?.summary.title).toBe("Ran 2 operations");
   });
 
+  test("leaves failed searches visible", () => {
+    const failedSearch = tool({
+      id: "search-1",
+      toolName: "web_search",
+      status: "failed",
+      result: { error: "provider unavailable" },
+    });
+
+    const infos = computeOperationalBundleInfos([failedSearch], { isTurnActive: false });
+
+    expect(infos[0]).toBeUndefined();
+  });
+
   test("active and just-settled tail bundles stay expanded until a visible event or turn end", () => {
     const active = computeOperationalBundleInfos(
       [reasoning({ id: "think-1", isStreaming: true })],
@@ -267,10 +362,28 @@ describe("operational bundle summary", () => {
     expect(summary.details).toBe("1 reasoning · 1 edit · 1 shell command · 1 question");
   });
 
-  test("all-miss search bundle gets neutral copy", () => {
+  test("all-miss completed search bundle gets neutral copy", () => {
     const allMiss = summarizeOperationalBundle([
-      tool({ id: "search-1", toolName: "web_search", status: "failed" }),
+      tool({ id: "search-1", toolName: "web_search", status: "completed", result: [] }),
+      tool({
+        id: "search-2",
+        toolName: "web_search",
+        status: "completed",
+        result: { type: "json", value: { sources: [] } },
+      }),
     ]);
     expect(allMiss.title).toBe("No results");
+  });
+
+  test("failed search summaries do not use no-results copy", () => {
+    const failedSearch = summarizeOperationalBundle([
+      tool({
+        id: "search-1",
+        toolName: "web_search",
+        status: "failed",
+        result: { error: "provider unavailable" },
+      }),
+    ]);
+    expect(failedSearch.title).toBe("Searched 1 query");
   });
 });

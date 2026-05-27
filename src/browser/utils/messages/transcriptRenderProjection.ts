@@ -1,5 +1,6 @@
 import { getToolCoalesceKind } from "./toolCoalescing";
 import type { DisplayedMessage } from "@/common/types/message";
+import { isPlainObject } from "@/common/utils/isPlainObject";
 
 export type OperationalBundleMemberMessage = DisplayedMessage & { type: "reasoning" | "tool" };
 
@@ -92,6 +93,10 @@ export function computeWorkBundleInfos(
     index += 1;
 
     if (finalIndex <= startIndex) {
+      continue;
+    }
+
+    if (messages[finalIndex]?.type !== "assistant") {
       continue;
     }
 
@@ -202,10 +207,6 @@ function getWorkBundleHistoryId(message: DisplayedMessage | undefined): string |
     case "assistant":
     case "tool":
     case "reasoning":
-    case "stream-error":
-    case "generated-image":
-    case "edited-image":
-    case "plan-display":
       return message.historyId;
     default:
       return undefined;
@@ -261,10 +262,7 @@ export function summarizeOperationalBundle(
     throw new Error("Cannot summarize an empty operational bundle");
   }
 
-  const allSearchMisses = messages.every(
-    (message) =>
-      message.type === "tool" && message.toolName === "web_search" && message.status === "failed"
-  );
+  const allSearchMisses = messages.every(isEmptyCompletedWebSearch);
   if (allSearchMisses) {
     return { title: "No results", details: formatDetails(messages) };
   }
@@ -279,13 +277,43 @@ export function summarizeOperationalBundle(
   };
 }
 
+function isEmptyCompletedWebSearch(message: OperationalBundleMemberMessage): boolean {
+  return (
+    message.type === "tool" &&
+    message.toolName === "web_search" &&
+    message.status === "completed" &&
+    getWebSearchResultCount(message.result) === 0
+  );
+}
+
+function getWebSearchResultCount(result: unknown): number | undefined {
+  const unwrapped = unwrapJsonResult(result);
+  if (Array.isArray(unwrapped)) {
+    return unwrapped.length;
+  }
+  if (isPlainObject(unwrapped) && Array.isArray(unwrapped.sources)) {
+    return unwrapped.sources.length;
+  }
+  return undefined;
+}
+
+function unwrapJsonResult(result: unknown): unknown {
+  if (isPlainObject(result) && result.type === "json" && "value" in result) {
+    return result.value;
+  }
+  return result;
+}
+
 function isOperationalBundleMemberMessage(
   message: DisplayedMessage | undefined
 ): message is OperationalBundleMemberMessage {
   if (message?.type === "reasoning") {
     return message.isOnlyMessageContent !== true;
   }
-  return message?.type === "tool";
+  if (message?.type === "tool") {
+    return !(message.toolName === "web_search" && message.status === "failed");
+  }
+  return false;
 }
 
 function isActiveOperationalMessage(message: OperationalBundleMemberMessage): boolean {

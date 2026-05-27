@@ -189,14 +189,7 @@ export const HyperAllMissSearchBundle: AppStory = {
             createAssistantMessage("miss-assistant-1", "I'll search for that helper.", {
               historySequence: 2,
               timestamp: STABLE_TIMESTAMP - 35_000,
-              toolCalls: [
-                createGenericTool(
-                  "miss-search-1",
-                  "web_search",
-                  { query: "deprecatedMuxHelper" },
-                  { success: false }
-                ),
-              ],
+              toolCalls: [createWebSearchTool("miss-search-1", "deprecatedMuxHelper", 0)],
             }),
           ],
         });
