@@ -321,6 +321,9 @@ function withFailureIndicator(title: string, messages: OperationalBundleMemberMe
 }
 
 function isBundleableToolMessage(message: DisplayedMessage & { type: "tool" }): boolean {
+  if (message.isPartial) {
+    return false;
+  }
   return (
     message.status === "completed" || message.status === "pending" || message.status === "executing"
   );

@@ -248,11 +248,18 @@ describe("work bundle coalescing", () => {
       toolName: "file_read",
       status: "redacted",
     });
+    const partialRead = tool({
+      id: "read-partial-1",
+      historyId,
+      toolName: "file_read",
+      isPartial: true,
+    });
     const messages = [
       failedSearch,
       failedBash,
       interruptedRead,
       redactedRead,
+      partialRead,
       assistant("final-1", { historyId }),
     ];
 
@@ -375,9 +382,14 @@ describe("operational bundle coalescing", () => {
       toolName: "file_read",
       status: "redacted",
     });
+    const partialRead = tool({
+      id: "read-partial-1",
+      toolName: "file_read",
+      isPartial: true,
+    });
 
     const infos = computeOperationalBundleInfos(
-      [failedSearch, failedBash, interruptedRead, redactedRead],
+      [failedSearch, failedBash, interruptedRead, redactedRead, partialRead],
       { isTurnActive: false }
     );
 
