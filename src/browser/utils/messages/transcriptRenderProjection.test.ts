@@ -220,7 +220,7 @@ describe("work bundle coalescing", () => {
     expect(infos.every((info) => info === undefined)).toBe(true);
   });
 
-  test("keeps failed searches visible before a final assistant row", () => {
+  test("keeps non-success tools visible before a final assistant row", () => {
     const historyId = "history-a1";
     const failedSearch = tool({
       id: "search-1",
@@ -229,7 +229,32 @@ describe("work bundle coalescing", () => {
       status: "failed",
       result: { error: "provider unavailable" },
     });
-    const messages = [failedSearch, assistant("final-1", { historyId })];
+    const failedBash = tool({
+      id: "bash-1",
+      historyId,
+      toolName: "bash",
+      status: "failed",
+      result: { exitCode: 1, output: "type error" },
+    });
+    const interruptedRead = tool({
+      id: "read-interrupted-1",
+      historyId,
+      toolName: "file_read",
+      status: "interrupted",
+    });
+    const redactedRead = tool({
+      id: "read-redacted-1",
+      historyId,
+      toolName: "file_read",
+      status: "redacted",
+    });
+    const messages = [
+      failedSearch,
+      failedBash,
+      interruptedRead,
+      redactedRead,
+      assistant("final-1", { historyId }),
+    ];
 
     const infos = computeWorkBundleInfos(messages);
 
@@ -327,17 +352,36 @@ describe("operational bundle coalescing", () => {
     expect(reasoningThenTool[0]?.summary.title).toBe("Ran 2 operations");
   });
 
-  test("leaves failed searches visible", () => {
+  test("leaves non-success tools visible", () => {
     const failedSearch = tool({
       id: "search-1",
       toolName: "web_search",
       status: "failed",
       result: { error: "provider unavailable" },
     });
+    const failedBash = tool({
+      id: "bash-1",
+      toolName: "bash",
+      status: "failed",
+      result: { exitCode: 1, output: "type error" },
+    });
+    const interruptedRead = tool({
+      id: "read-interrupted-1",
+      toolName: "file_read",
+      status: "interrupted",
+    });
+    const redactedRead = tool({
+      id: "read-redacted-1",
+      toolName: "file_read",
+      status: "redacted",
+    });
 
-    const infos = computeOperationalBundleInfos([failedSearch], { isTurnActive: false });
+    const infos = computeOperationalBundleInfos(
+      [failedSearch, failedBash, interruptedRead, redactedRead],
+      { isTurnActive: false }
+    );
 
-    expect(infos[0]).toBeUndefined();
+    expect(infos.every((info) => info === undefined)).toBe(true);
   });
 
   test("active and just-settled tail bundles stay expanded until a visible event or turn end", () => {
