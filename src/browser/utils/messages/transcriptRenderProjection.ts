@@ -17,8 +17,9 @@ export interface OperationalBundleEntry {
 export interface OperationalBundleInfo {
   key: string;
   position: "head" | "member";
+  /** Render slot where the bundle header is placed; leading entries can appear earlier. */
   headIndex: number;
-  entries: OperationalBundleEntry[];
+  entries: readonly OperationalBundleEntry[];
   summary: OperationalBundleSummary;
   state: "active" | "settled";
   defaultExpanded: boolean;
@@ -32,8 +33,9 @@ export interface WorkBundleEntry {
 export interface WorkBundleInfo {
   key: string;
   position: "head" | "member" | "final";
+  /** Render slot where the work-bundle header is placed. */
   headIndex: number;
-  entries: WorkBundleEntry[];
+  entries: readonly WorkBundleEntry[];
   durationMs?: number;
   defaultExpanded: boolean;
 }
@@ -137,13 +139,14 @@ export function computeWorkBundleInfos(
       continue;
     }
 
+    const frozenEntries = Object.freeze(entries);
     const first = entries[0].message;
     const info: WorkBundleInfo = {
       key: `work:${first.id}`,
       position: "head",
       headIndex: startIndex,
-      entries,
-      durationMs: computeWorkBundleDurationMs(entries, messages[finalIndex]),
+      entries: frozenEntries,
+      durationMs: computeWorkBundleDurationMs(frozenEntries, messages[finalIndex]),
       defaultExpanded: false,
     };
 
@@ -201,23 +204,24 @@ export function computeOperationalBundleInfos(
       index += 1;
     }
 
+    const frozenEntries = Object.freeze(entries);
     const first = entries[0].message;
 
-    const state = entries.some((entry) => isActiveOperationalMessage(entry.message))
+    const state = frozenEntries.some((entry) => isActiveOperationalMessage(entry.message))
       ? "active"
       : "settled";
     const hasSubsequentVisibleEvent = hasVisibleEventAfter(messages, index);
     const defaultExpanded =
       state === "active" || (options.isTurnActive && !hasSubsequentVisibleEvent);
     const key = `bundle:${first.id}`;
-    const summary = summarizeOperationalBundle(entries.map((entry) => entry.message));
+    const summary = summarizeOperationalBundle(frozenEntries.map((entry) => entry.message));
 
-    for (const entry of entries) {
+    for (const entry of frozenEntries) {
       infos[entry.originalIndex] = {
         key,
         position: entry.originalIndex === headIndex ? "head" : "member",
         headIndex,
-        entries,
+        entries: frozenEntries,
         summary,
         state,
         defaultExpanded,
@@ -256,7 +260,7 @@ function getMessageTimestamp(message: DisplayedMessage): number | undefined {
 }
 
 function computeWorkBundleDurationMs(
-  entries: WorkBundleEntry[],
+  entries: readonly WorkBundleEntry[],
   finalMessage: DisplayedMessage
 ): number | undefined {
   const startTimestamp = getMessageTimestamp(entries[0].message);

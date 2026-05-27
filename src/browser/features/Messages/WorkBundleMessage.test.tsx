@@ -45,4 +45,16 @@ describe("WorkBundleMessage", () => {
 
     expect(view.getByRole("button", { expanded: true })).toBeDefined();
   });
+
+  test("renders fallback label without duration", () => {
+    const view = render(
+      <WorkBundleMessage
+        item={{ ...item, durationMs: undefined }}
+        expanded={false}
+        onToggle={() => undefined}
+      />
+    );
+
+    expect(view.getByText("Worked")).toBeDefined();
+  });
 });

@@ -183,6 +183,15 @@ describe("work bundle coalescing", () => {
     expect(infos[4]).toMatchObject({ key: "work:think-1", position: "final" });
   });
 
+  test("omits work duration when timestamps are missing", () => {
+    const historyId = "history-a1";
+    const messages = [tool({ id: "read-1", historyId }), assistant("final-1", { historyId })];
+
+    const infos = computeWorkBundleInfos(messages);
+
+    expect(infos[0]).toMatchObject({ durationMs: undefined });
+  });
+
   test("keeps operational bundle metadata aligned inside work bundles", () => {
     const historyId = "history-a1";
     const messages = [
