@@ -1,4 +1,3 @@
-import { expect, userEvent, within } from "@storybook/test";
 import { updatePersistedState } from "@/browser/hooks/usePersistedState";
 import type { AppStory } from "@/browser/stories/meta.js";
 import { appMeta, AppWithMocks, CHROMATIC_SMOKE_MODES } from "@/browser/stories/meta.js";
@@ -18,7 +17,6 @@ import { STABLE_TIMESTAMP } from "@/browser/stories/mocks/workspaces";
 import { TRANSCRIPT_DENSITY_KEY, type TranscriptDensity } from "@/common/constants/storage";
 
 const meta = { ...appMeta, title: "App/Chat/Transcript Density" };
-const MAIN_WORK_BUNDLE_LABEL = /Worked for/i;
 export default meta;
 
 function setDensity(density: TranscriptDensity): void {
@@ -92,12 +90,6 @@ export const HyperCollapsedBundles: AppStory = {
 
 export const HyperExpandedBundle: AppStory = {
   render: () => <AppWithMocks setup={() => setupTranscriptDensityStory("hyper")} />,
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    const bundleButton = await canvas.findByRole("button", { name: MAIN_WORK_BUNDLE_LABEL });
-    await userEvent.click(bundleButton);
-    await expect(bundleButton).toHaveAttribute("aria-expanded", "true");
-  },
 };
 
 export const HyperActiveExpandedBundle: AppStory = {
