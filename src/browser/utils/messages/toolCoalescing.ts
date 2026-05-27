@@ -76,7 +76,9 @@ export interface ToolCoalesceInfo {
   filePaths: string[];
 }
 
-function getCoalesceKind(msg: DisplayedMessage | undefined): ToolCoalesceKind | undefined {
+export function getToolCoalesceKind(
+  msg: DisplayedMessage | undefined
+): ToolCoalesceKind | undefined {
   if (msg?.type !== "tool") return undefined;
   if (FILE_READ_TOOL_NAMES.has(msg.toolName)) return "file_read";
   if (FILE_EDIT_TOOL_NAMES.has(msg.toolName)) return "file_edit";
@@ -143,7 +145,7 @@ export function computeToolCoalesceInfos(
 
   let index = 0;
   while (index < messages.length) {
-    const kind = getCoalesceKind(messages[index]);
+    const kind = getToolCoalesceKind(messages[index]);
     if (!kind) {
       index++;
       continue;
@@ -151,7 +153,7 @@ export function computeToolCoalesceInfos(
 
     // Walk forward while the next message has the same coalesce kind.
     let groupEnd = index;
-    while (groupEnd < messages.length - 1 && getCoalesceKind(messages[groupEnd + 1]) === kind) {
+    while (groupEnd < messages.length - 1 && getToolCoalesceKind(messages[groupEnd + 1]) === kind) {
       groupEnd++;
     }
 

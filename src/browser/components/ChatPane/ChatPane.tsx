@@ -12,6 +12,7 @@ import { MessageListProvider } from "@/browser/features/Messages/MessageListCont
 import { cn } from "@/common/lib/utils";
 import { ChatInstructionsChatDecoration } from "@/browser/components/InstructionsTab/AdditionalSystemContextScratchpad";
 import { MessageRenderer } from "@/browser/features/Messages/MessageRenderer";
+import { OperationalBundleMessage } from "@/browser/features/Messages/OperationalBundleMessage";
 import { MarkdownRenderer } from "@/browser/features/Messages/MarkdownRenderer";
 import { useTranscriptContextMenu } from "@/browser/features/Messages/useTranscriptContextMenu";
 import type { UserMessageNavigation } from "@/browser/features/Messages/UserMessage";
@@ -81,6 +82,7 @@ import { useSendMessageOptions } from "@/browser/hooks/useSendMessageOptions";
 import type { TerminalSessionCreateOptions } from "@/browser/utils/terminal";
 import { useAPI } from "@/browser/contexts/API";
 import { useChatTranscriptFullWidth } from "@/browser/hooks/useChatTranscriptFullWidth";
+import { useTranscriptDensity } from "@/browser/hooks/useTranscriptDensity";
 import { useReviews } from "@/browser/hooks/useReviews";
 import { ReviewsBanner } from "../ReviewsBanner/ReviewsBanner";
 import type { ReviewNoteData } from "@/common/types/review";
@@ -102,6 +104,7 @@ import {
   isSideQuestionScrollHoldBottomClamped,
   type SideQuestionScrollHoldState,
 } from "./sideQuestionScrollHold";
+import { computeOperationalBundleInfos } from "@/browser/utils/messages/transcriptRenderProjection";
 import { recordSyntheticReactRenderSample } from "@/browser/utils/perf/reactProfileCollector";
 
 // Perf e2e runs load the production bundle where React's onRender profiler callbacks may not
@@ -265,6 +268,7 @@ const ChatPaneContent: React.FC<ChatPaneContentProps> = (props) => {
     onOpenTerminal,
   } = props;
   const workspaceState = useWorkspaceState(workspaceId);
+  const [transcriptDensity] = useTranscriptDensity();
   const chatTranscriptFullWidth = useChatTranscriptFullWidth();
   const { api } = useAPI();
   const { workspaceMetadata } = useWorkspaceContext();
@@ -351,6 +355,10 @@ const ChatPaneContent: React.FC<ChatPaneContentProps> = (props) => {
   const [expandedToolCoalesceGroups, setExpandedToolCoalesceGroups] = useState<Set<string>>(
     new Set()
   );
+
+  const [operationalBundleExpansionOverrides, setOperationalBundleExpansionOverrides] = useState<
+    Map<string, boolean>
+  >(new Map());
 
   // Extract state from workspace state
 
@@ -447,6 +455,16 @@ const ChatPaneContent: React.FC<ChatPaneContentProps> = (props) => {
   const toolCoalesceInfos = useMemo(
     () => computeToolCoalesceInfos(deferredMessages),
     [deferredMessages]
+  );
+
+  const operationalBundleInfos = useMemo(
+    () =>
+      transcriptDensity === "hyper"
+        ? computeOperationalBundleInfos(deferredMessages, {
+            isTurnActive: isStreamStarting || canInterrupt,
+          })
+        : undefined,
+    [canInterrupt, deferredMessages, isStreamStarting, transcriptDensity]
   );
 
   const autoCompactionResult = useMemo(
@@ -702,6 +720,7 @@ const ChatPaneContent: React.FC<ChatPaneContentProps> = (props) => {
     setEditingState({ workspaceId, message: undefined });
     setExpandedBashGroups(new Set());
     setExpandedToolCoalesceGroups(new Set());
+    setOperationalBundleExpansionOverrides(new Map());
   }, [workspaceId]);
 
   const handleChatInputReady = useCallback((api: ChatInputAPI) => {
@@ -1143,6 +1162,25 @@ const ChatPaneContent: React.FC<ChatPaneContentProps> = (props) => {
                       </div>
                     )}
                     {deferredMessages.map((msg, index) => {
+                      const operationalBundle = operationalBundleInfos?.[index];
+                      const operationalBundleOverride = operationalBundle
+                        ? operationalBundleExpansionOverrides.get(operationalBundle.key)
+                        : undefined;
+                      const isOperationalBundleExpanded = operationalBundle
+                        ? (operationalBundleOverride ?? operationalBundle.defaultExpanded)
+                        : false;
+
+                      if (
+                        operationalBundle?.position === "member" &&
+                        (index < operationalBundle.headIndex || !isOperationalBundleExpanded)
+                      ) {
+                        return null;
+                      }
+
+                      const renderOperationalBundle = operationalBundle?.position === "head";
+                      const renderMessageAfterOperationalBundle =
+                        !renderOperationalBundle || isOperationalBundleExpanded;
+
                       const bashOutputGroup = bashOutputGroupInfos[index];
 
                       // For bash_output groups, use first message ID as expansion key
@@ -1152,14 +1190,17 @@ const ChatPaneContent: React.FC<ChatPaneContentProps> = (props) => {
                       const isGroupExpanded = groupKey ? expandedBashGroups.has(groupKey) : false;
 
                       // Skip rendering middle items in a bash_output group (unless expanded)
-                      if (bashOutputGroup?.position === "middle" && !isGroupExpanded) {
+                      if (
+                        renderMessageAfterOperationalBundle &&
+                        bashOutputGroup?.position === "middle" &&
+                        !isGroupExpanded
+                      ) {
                         return null;
                       }
 
-                      // Tool-coalesce groups (file_read / file_edit bursts). The head
-                      // call is replaced by a summary row when collapsed; members are
-                      // hidden entirely until the user expands the group.
-                      const toolCoalesceGroup = toolCoalesceInfos[index];
+                      const toolCoalesceGroup = operationalBundle
+                        ? undefined
+                        : toolCoalesceInfos[index];
                       const coalesceHeadId = toolCoalesceGroup
                         ? deferredMessages[toolCoalesceGroup.headIndex]?.id
                         : undefined;
@@ -1184,16 +1225,13 @@ const ChatPaneContent: React.FC<ChatPaneContentProps> = (props) => {
                           ? taskReportLinking
                           : undefined;
 
-                      // Render order at the head of a coalesced group:
-                      //   - collapsed: summary row replaces the head's MessageRenderer.
-                      //   - expanded:  summary row sits at the top (acts as the
-                      //                collapse toggle) and the head's normal
-                      //                MessageRenderer renders directly below, with
-                      //                the rest of the group's members following on
-                      //                subsequent iterations.
                       const renderCoalesceSummary =
-                        toolCoalesceGroup?.position === "head" && coalesceHeadId;
-                      const renderNormalMessage = !renderCoalesceSummary || isToolCoalesceExpanded;
+                        renderMessageAfterOperationalBundle &&
+                        toolCoalesceGroup?.position === "head" &&
+                        coalesceHeadId;
+                      const renderNormalMessage =
+                        renderMessageAfterOperationalBundle &&
+                        (!renderCoalesceSummary || isToolCoalesceExpanded);
                       const toggleCoalesceGroup =
                         coalesceHeadId !== undefined
                           ? () =>
@@ -1210,6 +1248,41 @@ const ChatPaneContent: React.FC<ChatPaneContentProps> = (props) => {
 
                       return (
                         <React.Fragment key={`${workspaceId}:${msg.id}`}>
+                          {renderOperationalBundle && operationalBundle && (
+                            <OperationalBundleMessage
+                              item={operationalBundle}
+                              expanded={isOperationalBundleExpanded}
+                              onToggle={() => {
+                                setOperationalBundleExpansionOverrides((prev) => {
+                                  const next = new Map(prev);
+                                  const nextExpanded = !isOperationalBundleExpanded;
+                                  if (nextExpanded === operationalBundle.defaultExpanded) {
+                                    next.delete(operationalBundle.key);
+                                  } else {
+                                    next.set(operationalBundle.key, nextExpanded);
+                                  }
+                                  return next;
+                                });
+                              }}
+                            />
+                          )}
+                          {isOperationalBundleExpanded &&
+                            operationalBundle?.position === "head" &&
+                            operationalBundle.entries
+                              .filter((entry) => entry.originalIndex < operationalBundle.headIndex)
+                              .map((entry) => (
+                                <div
+                                  key={`${workspaceId}:${operationalBundle.key}:${entry.message.id}`}
+                                  className="ml-4"
+                                >
+                                  <MessageRenderer
+                                    message={entry.message}
+                                    workspaceId={workspaceId}
+                                    isCompacting={isCompacting}
+                                    onReviewNote={handleReviewNote}
+                                  />
+                                </div>
+                              ))}
                           {renderCoalesceSummary && toolCoalesceGroup && toggleCoalesceGroup && (
                             <CoalescedToolCall
                               kind={toolCoalesceGroup.kind}
@@ -1221,47 +1294,56 @@ const ChatPaneContent: React.FC<ChatPaneContentProps> = (props) => {
                             />
                           )}
                           {renderNormalMessage && (
-                            <MessageRenderer
-                              message={msg}
-                              onEditUserMessage={transcriptOnly ? undefined : handleEditUserMessage}
-                              workspaceId={workspaceId}
-                              isCompacting={isCompacting}
-                              onReviewNote={handleReviewNote}
-                              isLatestProposePlan={
-                                msg.type === "tool" &&
-                                msg.toolName === "propose_plan" &&
-                                msg.id === latestProposePlanId
-                              }
-                              bashOutputGroup={bashOutputGroup}
-                              taskReportLinking={taskReportLinkingForMessage}
-                              userMessageNavigation={
-                                msg.type === "user"
-                                  ? userMessageNavigationByHistoryId?.get(msg.historyId)
-                                  : undefined
-                              }
-                            />
+                            <div className={operationalBundle ? "ml-4" : undefined}>
+                              <MessageRenderer
+                                message={msg}
+                                onEditUserMessage={
+                                  transcriptOnly ? undefined : handleEditUserMessage
+                                }
+                                workspaceId={workspaceId}
+                                isCompacting={isCompacting}
+                                onReviewNote={handleReviewNote}
+                                isLatestProposePlan={
+                                  msg.type === "tool" &&
+                                  msg.toolName === "propose_plan" &&
+                                  msg.id === latestProposePlanId
+                                }
+                                bashOutputGroup={bashOutputGroup}
+                                taskReportLinking={taskReportLinkingForMessage}
+                                userMessageNavigation={
+                                  msg.type === "user"
+                                    ? userMessageNavigationByHistoryId?.get(msg.historyId)
+                                    : undefined
+                                }
+                              />
+                            </div>
                           )}
                           {/* Show collapsed indicator after the first item in a bash_output group */}
-                          {bashOutputGroup?.position === "first" && groupKey && (
-                            <BashOutputCollapsedIndicator
-                              processId={bashOutputGroup.processId}
-                              collapsedCount={bashOutputGroup.collapsedCount}
-                              isExpanded={isGroupExpanded}
-                              onToggle={() => {
-                                setExpandedBashGroups((prev) => {
-                                  const next = new Set(prev);
-                                  if (next.has(groupKey)) {
-                                    next.delete(groupKey);
-                                  } else {
-                                    next.add(groupKey);
-                                  }
-                                  return next;
-                                });
-                              }}
-                            />
+                          {renderMessageAfterOperationalBundle &&
+                            bashOutputGroup?.position === "first" &&
+                            groupKey && (
+                              <BashOutputCollapsedIndicator
+                                processId={bashOutputGroup.processId}
+                                collapsedCount={bashOutputGroup.collapsedCount}
+                                isExpanded={isGroupExpanded}
+                                onToggle={() => {
+                                  setExpandedBashGroups((prev) => {
+                                    const next = new Set(prev);
+                                    if (next.has(groupKey)) {
+                                      next.delete(groupKey);
+                                    } else {
+                                      next.add(groupKey);
+                                    }
+                                    return next;
+                                  });
+                                }}
+                              />
+                            )}
+                          {renderMessageAfterOperationalBundle && isAtCutoff && (
+                            <EditCutoffBarrier />
                           )}
-                          {isAtCutoff && <EditCutoffBarrier />}
-                          {interruptedBarrierMessageIds.has(msg.id) && <InterruptedBarrier />}
+                          {renderMessageAfterOperationalBundle &&
+                            interruptedBarrierMessageIds.has(msg.id) && <InterruptedBarrier />}
                         </React.Fragment>
                       );
                     })}

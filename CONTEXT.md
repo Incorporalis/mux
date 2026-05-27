@@ -44,6 +44,26 @@ _Avoid_: persisted row, visible message
 A shared or copied representation of transcript history, including visible context boundaries.
 _Avoid_: active context export
 
+**Transcript Density**:
+A presentation preference for how much transcript detail is visible while reading a workspace.
+_Avoid_: compaction, context compaction
+
+**Hyper Transcript Density**:
+The most aggressive **Transcript Density**, focused on surfacing important conversation progress while reducing low-signal transcript detail.
+_Avoid_: hyper compact mode, compaction mode
+
+**Operational Bundle**:
+A presentation grouping of adjacent low-signal operational transcript details.
+_Avoid_: timeline rail, global operation summary
+
+**Validation Event**:
+A first-class transcript event showing that the workspace was checked for correctness.
+_Avoid_: generic shell command, operational noise
+
+**Mutation Event**:
+A first-class transcript event showing that workspace or external state was changed.
+_Avoid_: generic shell command, operational noise
+
 ## Relationships
 
 - A **Hard Clear** deletes **Transcript History**.
@@ -62,6 +82,34 @@ _Avoid_: active context export
 - Context usage reflects **Active Conversation Context**, not all loaded **Transcript History**.
 - Messages above the latest **Context Boundary** are viewable and exportable but cannot directly mutate the current **Active Conversation Context**.
 - A **Transcript Export** can include **Transcript History** from above a **Context Reset Boundary**.
+
+- **Hyper Transcript Density** is a kind of **Transcript Density**.
+- **Transcript Density** changes the presentation of **Transcript History**, not what is preserved.
+- **Transcript Density** does not change **Active Conversation Context**.
+
+- **Hyper Transcript Density** can present low-signal transcript detail as **Operational Bundles**.
+- An **Operational Bundle** preserves local transcript order instead of summarizing unrelated operations across a whole turn.
+- Conversation rows bound **Operational Bundles**; they should not swallow the pacing between user prompts and assistant decisions.
+
+- Successful material changes remain first-class transcript events under **Hyper Transcript Density**.
+- **Operational Bundles** are for low-signal operational details, not for hiding material changes.
+
+- **Validation Events** remain visible under **Hyper Transcript Density**.
+- A successful **Validation Event** may be visually compact, but it is not hidden inside an **Operational Bundle**.
+
+- **Mutation Events** remain visible under **Hyper Transcript Density**.
+- A **Mutation Event** may be visually compact, but it is not hidden inside an **Operational Bundle**.
+
+- A single low-signal operation can still be represented as an **Operational Bundle** so **Hyper Transcript Density** reduces detail without making agent work invisible.
+
+- **Operational Bundles** default collapsed under **Hyper Transcript Density**.
+- Active low-signal work can remain compact unless it becomes long-running or attention-worthy.
+
+- An expanded **Operational Bundle** reveals the transcript details it grouped.
+
+- An **Operational Bundle** can remain expanded while it contains active low-signal work, then collapse after that work settles and the transcript moves on.
+
+- Low-impact operational misses can remain inside **Operational Bundles**; attention-worthy failures remain first-class transcript events.
 
 ## Example dialogue
 
@@ -104,7 +152,38 @@ _Avoid_: active context export
 > **Dev:** "Should partial or aborted messages before a **Context Reset Boundary** be cleaned up?"
 > **Domain expert:** "No — they remain **Transcript History** above the boundary, but are outside the new **Active Conversation Context**."
 
+> **Dev:** "Does **Hyper Transcript Density** compact the context or alter what the agent will see next?"
+> **Domain expert:** "No — it only changes how **Transcript History** is presented to the user. It never changes **Active Conversation Context**."
+
+> **Dev:** "Should **Hyper Transcript Density** merge every successful tool in a turn into one summary?"
+> **Domain expert:** "No — group adjacent low-signal details into **Operational Bundles** so the transcript still shows the pacing between inspection, decisions, fixes, failures, and validation."
+
+> **Dev:** "Should a successful file edit be hidden inside an **Operational Bundle** if it happened between reads and shell commands?"
+> **Domain expert:** "No — material changes remain visible as first-class transcript events. Bundle the surrounding low-signal operations instead."
+
+> **Dev:** "If `make static-check` passes, can **Hyper Transcript Density** hide it inside an **Operational Bundle**?"
+> **Domain expert:** "No — correctness checks are **Validation Events**. They can be compact, but they remain visible."
+
+> **Dev:** "Can a successful command that committed, pushed, installed, generated, or reformatted state be hidden inside an **Operational Bundle**?"
+> **Domain expert:** "No — state-changing work is a **Mutation Event**. It can be compact, but it remains visible."
+
+> **Dev:** "If there is only one low-signal operation between conversation rows, should **Hyper Transcript Density** hide it entirely?"
+> **Domain expert:** "No — show a compact **Operational Bundle** so the transcript still reveals that work happened."
+
+> **Dev:** "Should **Operational Bundles** auto-expand while the agent streams so users can watch every detail?"
+> **Domain expert:** "No — **Hyper Transcript Density** defaults bundles collapsed. Only long-running or attention-worthy active work should break that compact presentation."
+
+> **Dev:** "When an **Operational Bundle** expands, should it show a separate simplified summary instead of the grouped transcript details?"
+> **Domain expert:** "No — expansion should reveal the transcript details that were grouped, so compact presentation does not lose inspectability."
+
+> **Dev:** "Must active low-signal work stay outside an **Operational Bundle** until it completes?"
+> **Domain expert:** "No — it can be grouped while active, as long as the bundle remains expanded until the work settles and the transcript moves on."
+
+> **Dev:** "Should every failed command escape an **Operational Bundle**?"
+> **Domain expert:** "No — low-impact operational misses can stay bundled. Attention-worthy failures, such as correctness or state-changing failures, remain first-class transcript events."
+
 ## Flagged ambiguities
 
 - "soft clear" is a user-facing command style, not the domain concept; resolved: use **Context Reset** for the behavior.
 - "compaction boundary" implies summarization; resolved: use **Context Reset Boundary** for a reset without summarization.
+- "hyper compact mode" sounds like context compaction; resolved: use **Hyper Transcript Density** for the presentation-only behavior.
